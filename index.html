@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>TP 5 : Simple Chatbot Multi-langue</title>
+    <title>TP 5 : Simple Chatbot API</title>
     <script src="https://cdn.tailwindcss.com"></script>
     <style>
         .message-bubble {
@@ -30,11 +30,6 @@
         }
         .dot:nth-child(2) { animation-delay: 0.2s; }
         .dot:nth-child(3) { animation-delay: 0.4s; }
-        
-        [dir="rtl"] .message-bubble {
-            border-radius: 1rem;
-            border-top-right-radius: 0;
-        }
     </style>
 </head>
 <body class="bg-slate-50 h-screen flex flex-col font-sans">
@@ -47,8 +42,8 @@
             </div>
             <div>
                 <h1 class="text-lg font-semibold text-slate-800">Chatbot AI - TP 5</h1>
-                <p id="api-status" class="text-xs text-amber-500 flex items-center gap-1">
-                    <span class="w-2 h-2 bg-amber-500 rounded-full"></span> Vérification de la clé...
+                <p class="text-xs text-green-500 flex items-center gap-1">
+                    <span class="w-2 h-2 bg-green-500 rounded-full"></span> Connecté via API
                 </p>
             </div>
         </div>
@@ -56,21 +51,21 @@
 
     <!-- Chat Window -->
     <main id="chat-container" class="flex-1 overflow-y-auto p-4 md:p-8 space-y-4 custom-scrollbar">
+        <!-- Message de bienvenue -->
         <div class="flex justify-start">
             <div class="message-bubble bg-white border border-slate-200 text-slate-700 p-4 rounded-2xl rounded-tl-none shadow-sm">
-                Bonjour ! Je peux vous répondre en Français, Anglais ou Arabe.
-                <br>Hello! I can reply in French, English, or Arabic.
-                <br dir="rtl" class="block mt-1">مرحباً! يمكنني الرد بالفرنسية أو الإنجليزية أو العربية.
+                Bonjour ! Je suis votre assistant virtuel pour le TP 5. Comment puis-je vous aider aujourd'hui ?
             </div>
         </div>
     </main>
 
-    <!-- Typing Indicator -->
+    <!-- Typing Indicator (Hidden by default) -->
     <div id="typing-indicator" class="hidden px-8 py-2">
         <div class="flex items-center gap-1 text-slate-400 text-sm">
             <span class="dot w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
             <span class="dot w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
             <span class="dot w-1.5 h-1.5 bg-slate-400 rounded-full"></span>
+            <span class="ml-2 italic">L'IA réfléchit...</span>
         </div>
     </div>
 
@@ -80,26 +75,30 @@
             <input 
                 type="text" 
                 id="user-input" 
-                placeholder="Tapez votre message..." 
-                class="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all"
+                placeholder="Écrivez votre message ici..." 
+                class="flex-1 border border-slate-300 rounded-xl px-4 py-3 focus:outline-none focus:ring-2 focus:ring-indigo-500 focus:border-transparent transition-all"
                 required
             >
             <button 
                 type="submit" 
                 id="send-button"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors"
+                class="bg-indigo-600 hover:bg-indigo-700 text-white px-6 py-3 rounded-xl font-medium transition-colors flex items-center gap-2"
             >
                 Envoyer
+                <svg xmlns="http://www.w3.org/2000/svg" class="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                    <path d="M10.894 2.553a1 1 0 00-1.788 0l-7 14a1 1 0 001.169 1.409l5-1.429A1 1 0 009 15.571V11a1 1 0 112 0v4.571a1 1 0 00.725.962l5 1.428a1 1 0 001.17-1.408l-7-14z" />
+                </svg>
             </button>
         </form>
+        <p class="text-center text-[10px] text-slate-400 mt-2">Réalisé pour le TP 5 - Simple Chatbot API Interface</p>
     </footer>
 
     <script>
-        // NOTE: Si l'erreur "User not found" persiste, vérifiez que votre clé est bien copiée sans espaces
+        // Configuration
         const API_KEY = "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";
         const API_URL = "https://openrouter.ai/api/v1/chat/completions";
         
-        // Changement vers un modèle gratuit très stable
+        // Modèle mis à jour (stable sur OpenRouter)
         const MODEL_ID = "google/gemini-2.0-flash-001"; 
 
         const chatContainer = document.getElementById('chat-container');
@@ -107,27 +106,24 @@
         const userInput = document.getElementById('user-input');
         const typingIndicator = document.getElementById('typing-indicator');
         const sendButton = document.getElementById('send-button');
-        const statusText = document.getElementById('api-status');
 
+        // Historique de conversation
         let messages = [
-            { 
-                role: "system", 
-                content: "You are a helpful multilingual assistant. Detect the user's language (French, English, or Arabic) and respond in it. For Arabic, be polite and formal." 
-            }
+            { role: "system", content: "Tu es un assistant utile et poli pour un TP d'étudiant." }
         ];
-
-        function isArabic(text) {
-            return /[\u0600-\u06FF]/.test(text);
-        }
 
         function addMessage(content, isUser = false) {
             const wrapper = document.createElement('div');
             wrapper.className = `flex ${isUser ? 'justify-end' : 'justify-start'}`;
+
             const bubble = document.createElement('div');
-            const rtl = isArabic(content);
-            bubble.className = `message-bubble p-4 rounded-2xl shadow-sm ${isUser ? 'bg-indigo-600 text-white rounded-tr-none' : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'}`;
-            if (rtl) { bubble.setAttribute('dir', 'rtl'); bubble.style.textAlign = 'right'; }
+            bubble.className = `message-bubble p-4 rounded-2xl shadow-sm ${
+                isUser 
+                ? 'bg-indigo-600 text-white rounded-tr-none' 
+                : 'bg-white border border-slate-200 text-slate-700 rounded-tl-none'
+            }`;
             bubble.textContent = content;
+
             wrapper.appendChild(bubble);
             chatContainer.appendChild(wrapper);
             chatContainer.scrollTop = chatContainer.scrollHeight;
@@ -136,6 +132,8 @@
         async function fetchAIResponse(userMessage) {
             typingIndicator.classList.remove('hidden');
             sendButton.disabled = true;
+            sendButton.classList.add('opacity-50');
+
             messages.push({ role: "user", content: userMessage });
 
             try {
@@ -144,41 +142,32 @@
                     headers: {
                         "Authorization": `Bearer ${API_KEY}`,
                         "Content-Type": "application/json",
-                        "HTTP-Referer": window.location.origin,
-                        "X-Title": "TP Chatbot"
+                        "HTTP-Referer": window.location.href,
+                        "X-Title": "Chatbot TP 5"
                     },
                     body: JSON.stringify({
                         model: MODEL_ID,
-                        messages: messages,
-                        temperature: 0.7
+                        messages: messages
                     })
                 });
 
                 const data = await response.json();
 
                 if (!response.ok) {
-                    // Gestion spécifique de l'erreur "User not found"
-                    if (data.error && data.error.code === 401) {
-                        throw new Error("Clé API invalide ou expirée (401).");
-                    }
-                    throw new Error(data.error?.message || "Erreur de connexion");
+                    throw new Error(data.error?.message || "Erreur lors de l'appel API");
                 }
 
                 const aiMessage = data.choices[0].message.content;
                 messages.push({ role: "assistant", content: aiMessage });
                 addMessage(aiMessage, false);
-                
-                statusText.innerHTML = '<span class="w-2 h-2 bg-green-500 rounded-full"></span> API Prête';
-                statusText.className = "text-xs text-green-500 flex items-center gap-1";
 
             } catch (error) {
                 console.error("API Error:", error);
-                addMessage("Désolé, l'API a renvoyé une erreur : " + error.message, false);
-                statusText.innerHTML = '<span class="w-2 h-2 bg-red-500 rounded-full"></span> Erreur Clé API';
-                statusText.className = "text-xs text-red-500 flex items-center gap-1";
+                addMessage("Erreur : " + error.message, false);
             } finally {
                 typingIndicator.classList.add('hidden');
                 sendButton.disabled = false;
+                sendButton.classList.remove('opacity-50');
             }
         }
 
