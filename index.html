@@ -1,214 +1,166 @@
-<!DOCTYPE html>
-<html lang="fr">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chatbot API - TP 5</title>
-    <script src="https://cdn.tailwindcss.com"></script>
-    <style>
-        .message-appear {
-            animation: fadeIn 0.3s ease-out forwards;
-        }
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(10px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-        #chat-container::-webkit-scrollbar {
-            width: 6px;
-        }
-        #chat-container::-webkit-scrollbar-thumb {
-            background-color: #cbd5e1;
-            border-radius: 10px;
-        }
-    </style>
-</head>
-<body class="bg-slate-50 h-screen flex flex-col font-sans">
+import React, { useState, useEffect, useRef } from 'react';
+import { Send, User, Bot, Loader2, MessageSquare, Trash2, RefreshCcw } from 'lucide-react';
 
-    <!-- Header avec indicateur d'état -->
-    <header class="bg-white border-b p-4 flex justify-between items-center shadow-sm">
-        <div class="flex items-center gap-3">
-            <div class="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold shadow-lg shadow-indigo-200">
-                CB
-            </div>
-            <div>
-                <h1 class="text-md font-bold text-slate-800 uppercase tracking-tight">Assistant Intelligent</h1>
-                <p id="api-status" class="text-[10px] font-medium flex items-center gap-1 text-slate-500">
-                    <span id="status-dot" class="w-2 h-2 bg-slate-300 rounded-full"></span>
-                    <span id="status-text">Prêt</span>
-                </p>
-            </div>
-        </div>
-        <button onclick="clearChat()" class="p-2 hover:bg-slate-100 rounded-full transition-colors group" title="Effacer la conversation">
-            <svg xmlns="http://www.w3.org/2000/svg" class="h-5 w-5 text-slate-400 group-hover:text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-            </svg>
-        </button>
-    </header>
+const App = () => {
+  const [messages, setMessages] = useState([
+    { role: 'assistant', content: 'Bonjour ! Je suis votre assistant intelligent. Comment puis-je vous aider aujourd\'hui ?' }
+  ]);
+  const [input, setInput] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
+  const messagesEndRef = useRef(null);
+  
+  // API Config
+  const apiKey = ""; // L'environnement injecte la clé automatiquement
+  const modelUrl = "https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash-preview-09-2025:generateContent";
 
-    <!-- Zone de conversation -->
-    <main id="chat-container" class="flex-1 overflow-y-auto p-4 space-y-4">
-        <div class="flex justify-start">
-            <div class="bg-white border border-slate-200 rounded-2xl rounded-tl-none p-4 max-w-[85%] shadow-sm text-slate-700 text-sm leading-relaxed">
-                Bonjour ! Je suis prêt pour votre TP. Posez-moi une question.
-            </div>
-        </div>
-    </main>
+  // Auto-scroll to bottom
+  const scrollToBottom = () => {
+    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+  };
 
-    <!-- Indicateur de frappe -->
-    <div id="status-bar" class="hidden px-6 py-2 bg-indigo-50 text-indigo-600 text-[11px] font-medium italic border-t border-indigo-100 animate-pulse">
-        L'IA est en train de répondre...
-    </div>
+  useEffect(() => {
+    scrollToBottom();
+  }, [messages]);
 
-    <!-- Zone de saisie -->
-    <footer class="p-4 bg-white border-t">
-        <form id="chat-form" class="max-w-4xl mx-auto flex gap-3">
-            <input 
-                type="text" 
-                id="user-input" 
-                placeholder="Entrez votre message..." 
-                class="flex-1 border border-slate-200 rounded-xl px-5 py-3.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500 transition-all shadow-inner"
-                required
-                autocomplete="off"
-            >
-            <button 
-                type="submit" 
-                id="send-btn"
-                class="bg-indigo-600 hover:bg-indigo-700 text-white rounded-xl px-6 flex items-center justify-center shadow-lg shadow-indigo-100 transition-all active:scale-95 disabled:opacity-50"
-            >
-                <span class="font-bold text-sm">Envoyer</span>
-            </button>
-        </form>
-        <p class="text-[9px] text-center text-slate-400 mt-4 uppercase font-semibold tracking-widest">
-            TP 5 - Interface Chatbot API • GitHub Ready
-        </p>
-    </footer>
+  const handleSend = async (e) => {
+    e.preventDefault();
+    if (!input.trim() || isLoading) return;
 
-    <script>
-        /**
-         * CONFIGURATION DU TP
-         * NOTE SECURITE : Si vous publiez sur GitHub, évitez de laisser votre clé en clair.
-         */
-        const CONFIG = {
-            apiKey: "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".trim(),
-            apiUrl: "https://openrouter.ai/api/v1/chat/completions",
-            model: "google/gemini-2.0-flash-lite-001"
-        };
+    const userMessage = input.trim();
+    setInput('');
+    setMessages(prev => [...prev, { role: 'user', content: userMessage }]);
+    setIsLoading(true);
 
-        const chatContainer = document.getElementById('chat-container');
-        const chatForm = document.getElementById('chat-form');
-        const userInput = document.getElementById('user-input');
-        const sendBtn = document.getElementById('send-btn');
-        const statusBar = document.getElementById('status-bar');
-        const statusDot = document.getElementById('status-dot');
-        const statusText = document.getElementById('status-text');
-
-        let messageHistory = [
-            { role: "system", content: "Tu es un assistant utile et concis." }
-        ];
-
-        function updateStatus(type, msg) {
-            if (!statusText) return;
-            statusText.innerText = msg;
-            if (type === 'ready') statusDot.className = "w-2 h-2 bg-indigo-400 rounded-full";
-            if (type === 'loading') statusDot.className = "w-2 h-2 bg-amber-400 rounded-full animate-ping";
-            if (type === 'error') statusDot.className = "w-2 h-2 bg-red-500 rounded-full";
-            if (type === 'success') statusDot.className = "w-2 h-2 bg-green-500 rounded-full";
-        }
-
-        function addMessageToUI(role, text) {
-            const wrapper = document.createElement('div');
-            wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-appear`;
-            
-            const bubble = document.createElement('div');
-            bubble.className = role === 'user' 
-                ? "bg-indigo-600 text-white rounded-2xl rounded-tr-none p-4 max-w-[85%] shadow-md text-sm"
-                : "bg-white border border-slate-200 text-slate-700 rounded-2xl rounded-tl-none p-4 max-w-[85%] shadow-sm text-sm";
-            
-            bubble.innerText = text;
-            wrapper.appendChild(bubble);
-            chatContainer.appendChild(wrapper);
-            chatContainer.scrollTop = chatContainer.scrollHeight;
-        }
-
-        async function callAPI(payload, retries = 3) {
-            // Vérification de la présence de la clé
-            if (!CONFIG.apiKey || CONFIG.apiKey === "") {
-                throw new Error("Clé API manquante dans la configuration.");
-            }
-
-            for (let i = 0; i < retries; i++) {
-                try {
-                    const response = await fetch(CONFIG.apiUrl, {
-                        method: "POST",
-                        headers: {
-                            "Authorization": `Bearer ${CONFIG.apiKey}`,
-                            "Content-Type": "application/json",
-                            "HTTP-Referer": window.location.origin || "https://github.com",
-                            "X-Title": "TP5-Chatbot-Student"
-                        },
-                        body: JSON.stringify(payload)
-                    });
-
-                    const data = await response.json();
-
-                    if (!response.ok) {
-                        throw new Error(data.error?.message || `Erreur ${response.status}`);
-                    }
-
-                    return data;
-                } catch (err) {
-                    if (i === retries - 1) throw err;
-                    const delay = Math.pow(2, i) * 1000;
-                    await new Promise(r => setTimeout(r, delay));
-                }
-            }
-        }
-
-        chatForm.addEventListener('submit', async (e) => {
-            e.preventDefault();
-            const text = userInput.value.trim();
-            if (!text) return;
-
-            addMessageToUI('user', text);
-            userInput.value = '';
-            userInput.disabled = true;
-            sendBtn.disabled = true;
-            statusBar.classList.remove('hidden');
-            updateStatus('loading', 'L\'IA réfléchit...');
-
-            messageHistory.push({ role: "user", content: text });
-
-            try {
-                const responseData = await callAPI({
-                    model: CONFIG.model,
-                    messages: messageHistory
-                });
-                
-                const aiMsg = responseData.choices[0].message.content;
-                addMessageToUI('assistant', aiMsg);
-                messageHistory.push({ role: "assistant", content: aiMsg });
-                updateStatus('ready', 'Prêt');
-
-            } catch (err) {
-                console.error("Erreur:", err);
-                updateStatus('error', 'Erreur API');
-                addMessageToUI('assistant', `Désolé, une erreur est survenue : ${err.message}`);
-            } finally {
-                userInput.disabled = false;
-                sendBtn.disabled = false;
-                statusBar.classList.add('hidden');
-                userInput.focus();
-            }
+    let retries = 0;
+    const maxRetries = 5;
+    
+    const fetchWithRetry = async (currentRetry) => {
+      try {
+        const response = await fetch(`${modelUrl}?key=${apiKey}`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contents: [{ parts: [{ text: userMessage }] }],
+            systemInstruction: { parts: [{ text: "Tu es un assistant utile, poli et concis. Réponds en français." }] }
+          })
         });
 
-        function clearChat() {
-            chatContainer.innerHTML = '';
-            messageHistory = [messageHistory[0]];
-            addMessageToUI('assistant', "Bonjour ! Comment puis-je vous aider ?");
-            updateStatus('ready', 'Prêt');
+        if (!response.ok) {
+          if (currentRetry < maxRetries) {
+            const delay = Math.pow(2, currentRetry) * 1000;
+            await new Promise(res => setTimeout(res, delay));
+            return fetchWithRetry(currentRetry + 1);
+          }
+          throw new Error('Impossible de contacter l\'API après plusieurs tentatives.');
         }
 
-        window.onload = () => updateStatus('ready', 'Prêt');
-    </script>
-</body>
-</html>
+        const data = await response.json();
+        const aiResponse = data.candidates?.[0]?.content?.parts?.[0]?.text || "Désolé, je n'ai pas pu générer de réponse.";
+        
+        setMessages(prev => [...prev, { role: 'assistant', content: aiResponse }]);
+      } catch (error) {
+        setMessages(prev => [...prev, { 
+          role: 'assistant', 
+          content: "Désolé, une erreur est survenue lors de la communication avec l'IA. Veuillez vérifier votre connexion ou réessayer plus tard." 
+        }]);
+      } finally {
+        setIsLoading(false);
+      }
+    };
+
+    await fetchWithRetry(0);
+  };
+
+  const clearChat = () => {
+    setMessages([{ role: 'assistant', content: 'Conversation réinitialisée. Comment puis-je vous aider ?' }]);
+  };
+
+  return (
+    <div className="flex flex-col h-screen bg-slate-50 font-sans">
+      {/* Header */}
+      <header className="bg-white border-b px-6 py-4 flex justify-between items-center shadow-sm">
+        <div className="flex items-center gap-3">
+          <div className="bg-blue-600 p-2 rounded-lg">
+            <MessageSquare className="text-white w-5 h-5" />
+          </div>
+          <h1 className="text-xl font-bold text-slate-800">Assistant IA</h1>
+        </div>
+        <button 
+          onClick={clearChat}
+          className="text-slate-500 hover:text-red-500 transition-colors p-2 rounded-full hover:bg-red-50"
+          title="Effacer la conversation"
+        >
+          <Trash2 size={20} />
+        </button>
+      </header>
+
+      {/* Chat Area */}
+      <main className="flex-1 overflow-y-auto p-4 md:p-6 space-y-6">
+        {messages.map((msg, index) => (
+          <div 
+            key={index} 
+            className={`flex ${msg.role === 'user' ? 'justify-end' : 'justify-start'} animate-in fade-in slide-in-from-bottom-2 duration-300`}
+          >
+            <div className={`flex max-w-[85%] md:max-w-[70%] gap-3 ${msg.role === 'user' ? 'flex-row-reverse' : ''}`}>
+              <div className={`flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center ${
+                msg.role === 'user' ? 'bg-blue-100 text-blue-600' : 'bg-slate-200 text-slate-600'
+              }`}>
+                {msg.role === 'user' ? <User size={18} /> : <Bot size={18} />}
+              </div>
+              <div className={`p-4 rounded-2xl shadow-sm ${
+                msg.role === 'user' 
+                ? 'bg-blue-600 text-white rounded-tr-none' 
+                : 'bg-white border border-slate-200 text-slate-800 rounded-tl-none'
+              }`}>
+                <p className="whitespace-pre-wrap leading-relaxed">{msg.content}</p>
+              </div>
+            </div>
+          </div>
+        ))}
+        {isLoading && (
+          <div className="flex justify-start animate-pulse">
+            <div className="flex max-w-[70%] gap-3">
+              <div className="w-8 h-8 rounded-full bg-slate-200 flex items-center justify-center text-slate-500">
+                <Loader2 className="animate-spin" size={18} />
+              </div>
+              <div className="p-4 rounded-2xl bg-white border border-slate-200 text-slate-400 italic">
+                L'IA réfléchit...
+              </div>
+            </div>
+          </div>
+        )}
+        <div ref={messagesEndRef} />
+      </main>
+
+      {/* Input Area */}
+      <footer className="p-4 bg-white border-t">
+        <form onSubmit={handleSend} className="max-w-4xl mx-auto relative flex items-center gap-2">
+          <input
+            type="text"
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder="Posez votre question ici..."
+            className="flex-1 p-4 pr-12 rounded-xl border border-slate-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all shadow-inner bg-slate-50"
+            disabled={isLoading}
+          />
+          <button
+            type="submit"
+            disabled={!input.trim() || isLoading}
+            className={`p-3 rounded-xl transition-all shadow-md ${
+              !input.trim() || isLoading 
+              ? 'bg-slate-200 text-slate-400 cursor-not-allowed' 
+              : 'bg-blue-600 text-white hover:bg-blue-700 active:scale-95'
+            }`}
+          >
+            {isLoading ? <Loader2 className="animate-spin" size={24} /> : <Send size={24} />}
+          </button>
+        </form>
+        <p className="text-center text-xs text-slate-400 mt-2">
+          Propulsé par Gemini 2.5 Flash • Interface React Responsive
+        </p>
+      </footer>
+    </div>
+  );
+};
+
+export default App;
