@@ -33,7 +33,7 @@
             <div>
                 <h1 class="text-lg font-bold text-slate-800">Chatbot Assistant</h1>
                 <p class="text-xs text-green-500 flex items-center gap-1">
-                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connecté à l'API
+                    <span class="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span> Connecté via API
                 </p>
             </div>
         </div>
@@ -52,7 +52,7 @@
         </div>
     </main>
 
-    <!-- Error/Status Indicator -->
+    <!-- Status Indicator -->
     <div id="status-bar" class="hidden px-4 py-2 bg-amber-50 text-amber-700 text-xs border-t border-amber-100 italic">
         Le bot réfléchit...
     </div>
@@ -78,12 +78,13 @@
             </button>
         </form>
         <p class="text-[10px] text-center text-slate-400 mt-2">
-            TP 5 - Utilisation d'API OpenRouter | Modèle: Google Gemini Flash 2.5
+            Réalisé pour le TP 5 - Simple Chatbot API Interface
         </p>
     </footer>
 
     <script>
         // Configuration
+        // Note: Assurez-vous que votre clé OpenRouter est valide et dispose de crédits (même gratuits)
         const API_KEY = "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";
         const API_URL = "https://openrouter.ai/api/v1/chat/completions";
         
@@ -93,12 +94,10 @@
         const sendBtn = document.getElementById('send-btn');
         const statusBar = document.getElementById('status-bar');
 
-        // Historique de la conversation
         let messages = [
-            { role: "system", content: "Tu es un assistant utile et poli pour un étudiant en informatique effectuant son TP 5." }
+            { role: "system", content: "Tu es un assistant utile pour un TP informatique." }
         ];
 
-        // Fonction pour ajouter un message à l'UI
         function addMessage(role, text) {
             const wrapper = document.createElement('div');
             wrapper.className = `flex ${role === 'user' ? 'justify-end' : 'justify-start'} message-appear`;
@@ -111,75 +110,69 @@
             bubble.innerText = text;
             wrapper.appendChild(bubble);
             chatContainer.appendChild(wrapper);
-            
-            // Auto-scroll
             chatContainer.scrollTop = chatContainer.scrollHeight;
         }
 
-        // Fonction de retry avec Exponential Backoff
-        async function fetchWithRetry(data, maxRetries = 5) {
+        async function fetchWithRetry(data, maxRetries = 3) {
             for (let i = 0; i < maxRetries; i++) {
                 try {
                     const response = await fetch(API_URL, {
                         method: "POST",
                         headers: {
                             "Authorization": `Bearer ${API_KEY}`,
-                            "HTTP-Referer": window.location.origin,
-                            "X-Title": "TP5-Chatbot",
-                            "Content-Type": "application/json"
+                            "Content-Type": "application/json",
+                            "HTTP-Referer": window.location.href, // Requis par OpenRouter
+                            "X-Title": "Chatbot TP5"
                         },
                         body: JSON.stringify(data)
                     });
 
+                    const result = await response.json();
+
                     if (!response.ok) {
-                        const errorBody = await response.json();
-                        throw new Error(errorBody.error?.message || `Erreur HTTP ${response.status}`);
+                        // Affiche l'erreur spécifique renvoyée par l'API
+                        throw new Error(result.error?.message || `Erreur ${response.status}`);
                     }
 
-                    return await response.json();
+                    return result;
                 } catch (error) {
                     if (i === maxRetries - 1) throw error;
-                    // Exponential backoff: 1s, 2s, 4s, 8s, 16s
-                    const delay = Math.pow(2, i) * 1000;
-                    await new Promise(resolve => setTimeout(resolve, delay));
+                    await new Promise(r => setTimeout(r, 1000 * Math.pow(2, i)));
                 }
             }
         }
 
-        // Gestionnaire d'envoi
         chatForm.addEventListener('submit', async (e) => {
             e.preventDefault();
             const text = userInput.value.trim();
             if (!text) return;
 
-            // Interface
             addMessage('user', text);
             userInput.value = '';
             userInput.disabled = true;
             sendBtn.disabled = true;
             statusBar.classList.remove('hidden');
-            statusBar.innerText = "L'IA réfléchit...";
 
-            // Update state
             messages.push({ role: "user", content: text });
 
             try {
                 const data = {
-                    model: "google/gemini-2.0-flash-001", // Modèle rapide et efficace
+                    model: "google/gemini-2.0-flash-001", 
                     messages: messages
                 };
 
                 const result = await fetchWithRetry(data);
-                const aiResponse = result.candidates?.[0]?.message?.content || 
-                                   result.choices?.[0]?.message?.content || 
-                                   "Désolé, je n'ai pas pu générer de réponse.";
+                
+                // OpenRouter renvoie généralement les données dans choices[] comme OpenAI
+                const aiResponse = result.choices?.[0]?.message?.content || 
+                                   "Erreur : Format de réponse inconnu.";
 
                 addMessage('assistant', aiResponse);
                 messages.push({ role: "assistant", content: aiResponse });
 
             } catch (err) {
-                console.error(err);
-                addMessage('assistant', "⚠️ Désolé, une erreur est survenue lors de la communication avec l'API. Veuillez vérifier votre connexion ou votre clé API.");
+                console.error("Détails de l'erreur:", err);
+                addMessage('assistant', `Erreur : ${err.message}`);
             } finally {
                 userInput.disabled = false;
                 sendBtn.disabled = false;
@@ -190,8 +183,8 @@
 
         function clearChat() {
             chatContainer.innerHTML = '';
-            messages = [messages[0]]; // Garder le message système
-            addMessage('assistant', "Conversation réinitialisée. Comment puis-je vous aider ?");
+            messages = [messages[0]];
+            addMessage('assistant', "Bonjour ! Comment puis-je vous aider ?");
         }
     </script>
 </body>
